@@ -30,6 +30,8 @@ pub struct DrawParam {
     pub rotation: f32,
     /// The x/y scale factors expressed as a `Vector2`.
     pub scale: mint::Vector2<f32>,
+    /// The scaling type. Used by `graphics::draw`
+    pub scale_type: Scaling,
     /// An offset from the center for transform operations like scale/rotation,
     /// with `0,0` meaning the origin and `1,1` meaning the opposite corner from the origin.
     /// By default these operations are done from the top-left corner, so to rotate something
@@ -40,6 +42,16 @@ pub struct DrawParam {
     pub color: Color,
 }
 
+
+/// Scaling type to use with DrawParam.
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum Scaling {
+    /// Absolute scaling. Will make the bounding box match the scale factor.
+    Absolute,
+    /// Relative scale. The bounding box will be multiplied by the scale factor.
+    Relative,
+}
+
 impl Default for DrawParam {
     fn default() -> Self {
         DrawParam {
@@ -47,6 +59,7 @@ impl Default for DrawParam {
             dest: mint::Point2 { x: 0.0, y: 0.0 },
             rotation: 0.0,
             scale: mint::Vector2 { x: 1.0, y: 1.0 },
+            scale_type: Scaling::Relative,
             offset: mint::Point2 { x: 0.0, y: 0.0 },
             color: WHITE,
         }
@@ -109,6 +122,7 @@ impl DrawParam {
     }
 
     /// A [`DrawParam`](struct.DrawParam.html) that has been crunched down to a single matrix.
+    /// Panics when debug assertions are enabled if the scaling type is Absolute.
     fn to_na_matrix(&self) -> Matrix4 {
         // Calculate a matrix equivalent to doing this:
         //  let translate = Matrix4::new_translation(&Vec3::new(self.dest.x, self.dest.y, 0.0));
@@ -119,6 +133,12 @@ impl DrawParam {
         //  let rotation = Matrix4::new_rotation(axis_angle);
         //  let scale = Matrix4::new_nonuniform_scaling(&Vec3::new(self.scale.x, self.scale.y, 1.0));
         //  translate * offset * rotation * scale * offset_inverse
+
+        // Verify the scaling type is relative. (Only in debug mode; we probably don't want this check in release code.)
+        if cfg!(debug_assertions) && self.scale_type == Scaling::Absolute {
+            panic!("A DrawParam was asked to convert to a matrix while having its scale factor in absolute coordinates!");
+        }
+
         let cosr = self.rotation.cos();
         let sinr = self.rotation.sin();
         let m00 = cosr * self.scale.x;
@@ -131,10 +151,28 @@ impl DrawParam {
     }
 
     /// A [`DrawParam`](struct.DrawParam.html) that has been crunched down to a single
-    ///matrix.  Because of this it only contains the transform part (rotation/scale/etc),
+    /// matrix. Because of this it only contains the transform part (rotation/scale/etc),
     /// with no src/dest/color info.
     pub fn to_matrix(&self) -> mint::ColumnMatrix4<f32> {
         self.to_na_matrix().into()
+    }
+
+    /// Convert self.scale from absolute to relative coordinates if necessary.
+    /// 
+    /// * `rect` - Bounding box to use as reference
+    pub fn absolute_to_relative(&mut self, rect: Rect) {
+        if self.scale_type == Scaling::Absolute {
+            self.scale.x /= rect.w;
+            self.scale.y /= rect.h;
+            self.scale_type = Scaling::Relative;
+        }
+    }
+
+    /// Identical to `absolute_to_relative`, but doesn't check if the scale type is Absolute beforehand.
+    pub fn absolute_to_relative_unchecked(&mut self, rect: Rect) {
+        self.scale.x /= rect.w;
+        self.scale.y /= rect.h;
+        self.scale_type = Scaling::Relative;
     }
 }
 

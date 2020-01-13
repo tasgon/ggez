@@ -479,7 +479,11 @@ where
     D: Drawable,
     T: Into<DrawParam>,
 {
-    let params = params.into();
+    let mut params: DrawParam = params.into();
+    if params.scale_type == Scaling::Absolute {
+        let rect = drawable.dimensions(ctx).expect("Absolute scaling was requested, however the associated Drawable cannot provide a valid bounding box.");
+        params.absolute_to_relative_unchecked(rect);
+    }
     drawable.draw(ctx, params)
 }
 
