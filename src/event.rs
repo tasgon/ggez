@@ -28,7 +28,7 @@ pub use gilrs::Button;
 pub mod winit_event {
     pub use super::winit::event::{
         DeviceEvent, ElementState, Event, KeyboardInput, ModifiersState, MouseScrollDelta,
-        TouchPhase, WindowEvent,
+        TouchPhase, WindowEvent, Touch, Force,
     };
 }
 pub use crate::input::gamepad::GamepadId;
@@ -148,6 +148,10 @@ pub trait EventHandler {
     /// Called when the user resizes the window, or when it is resized
     /// via [`graphics::set_mode()`](../graphics/fn.set_mode.html).
     fn resize_event(&mut self, _ctx: &mut Context, _width: f32, _height: f32) {}
+
+    /// Called for any winit WindowEvent that was not taken care of
+    /// in the other methods.
+    fn winit_event(&mut self, _ctx: &mut Context, _event: WindowEvent) {}
 }
 
 /// Terminates the [`ggez::event::run()`](fn.run.html) loop by setting
@@ -256,6 +260,7 @@ where
                 }
                 _x => {
                     // trace!("ignoring window event {:?}", x);
+                    state.winit_event(ctx, _x);
                 }
             },
             Event::DeviceEvent { event, .. } => match event {
